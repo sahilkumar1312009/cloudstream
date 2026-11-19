@@ -1234,7 +1234,10 @@ class ResultViewModel2 : ViewModel() {
             //val context = CloudStreamApp.context
             postPopup(
                 text,
-                links.links.map { txt("${it.name} ${Qualities.getStringByInt(it.quality)}") }
+                links.links.map {
+                    val label = if (it.source == it.name) it.name else "${it.source} - ${it.name}"
+                    txt("$label ${Qualities.getStringByInt(it.quality)}")
+                }
                 /*.amap {
                 val size =
                     it.getVideoSize()?.let { size -> " " + formatFileSize(context, size) } ?: ""
@@ -1495,24 +1498,46 @@ class ResultViewModel2 : ViewModel() {
                     LOADTYPE_INAPP_DOWNLOAD,
                     txt(R.string.episode_action_download_mirror)
                 ) { (result, index) ->
-                    DownloadQueueManager.addToQueue(
-                        DownloadObjects.DownloadQueueItem(
-                            click.data,
-                            response.isMovie(),
-                            response.name,
-                            response.type,
-                            response.posterUrl,
-                            response.apiName,
-                            response.getId(),
-                            response.url,
-                            listOf(result.links[index]),
-                            result.subs,
-                        ).toWrapper()
-                    )
-                    showToast(
-                        R.string.download_started,
-                        Toast.LENGTH_SHORT
-                    )
+                    val chosenLink = result.links[index]
+
+                    fun startDownloadWith(chosenSubs: List<SubtitleData>) {
+                        DownloadQueueManager.addToQueue(
+                            DownloadObjects.DownloadQueueItem(
+                                click.data,
+                                response.isMovie(),
+                                response.name,
+                                response.type,
+                                response.posterUrl,
+                                response.apiName,
+                                response.getId(),
+                                response.url,
+                                listOf(chosenLink),
+                                chosenSubs,
+                            ).toWrapper()
+                        )
+                        showToast(
+                            R.string.download_started,
+                            Toast.LENGTH_SHORT
+                        )
+                    }
+
+                    if (result.subs.isEmpty()) {
+                        startDownloadWith(emptyList())
+                    } else {
+                        // Track (subtitle) selection: 0 = none, 1 = all, 2+ = single subtitle
+                        val subOptions = mutableListOf<UiText>()
+                        subOptions.add(txt("No subtitles"))
+                        subOptions.add(txt("All subtitles"))
+                        result.subs.forEach { subOptions.add(txt(it.name)) }
+
+                        postPopup(txt("Select subtitle track"), subOptions) { subIndex ->
+                            when (subIndex ?: return@postPopup) {
+                                0 -> startDownloadWith(emptyList())
+                                1 -> startDownloadWith(result.subs)
+                                else -> startDownloadWith(listOf(result.subs[subIndex - 2]))
+                            }
+                        }
+                    }
                 }
             }
 
